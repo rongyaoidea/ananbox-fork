@@ -13,3 +13,7 @@
 .externalNativeBuild
 .cxx
 local.properties
+/app/src/main/cpp/boost/
+/app/src/main/cpp/external/
+/app/src/main/cpp/boost-*.tar.xz
+/app/src/main/cpp/.boost-prepare.lock
