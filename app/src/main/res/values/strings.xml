@@ -25,4 +25,8 @@
     <string name="anna_gateway_summary">Expose the container to external agents over a local HTTP API</string>
     <string name="anna_lan_title">Allow LAN access</string>
     <string name="anna_lan_summary">Listen on all interfaces instead of 127.0.0.1 (requires bearer token)</string>
+    <string name="anna_exec_title">Allow console access</string>
+    <string name="anna_exec_summary">Let the gateway run guest commands, start or install apps and write files. Anyone holding the token gets full control of the container.</string>
+    <string name="anna_exec_confirm_title">Enable console access?</string>
+    <string name="anna_exec_confirm_message">This lets the agent run commands inside the container, install APKs and modify files. Only enable it if you trust every client that knows the token.</string>
 </resources>

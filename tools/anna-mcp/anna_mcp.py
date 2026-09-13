@@ -24,6 +24,7 @@ import os
 import sys
 import urllib.error
 import urllib.request
+from urllib.parse import quote
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "anna"
@@ -40,12 +41,15 @@ class AnnaClient:
         self.token = token or os.environ.get("ANNA_TOKEN", "")
         self.timeout = timeout
 
-    def request(self, method, path, payload=None):
+    def request(self, method, path, payload=None, raw=None, content_type="application/octet-stream"):
         headers = {"Authorization": "Bearer " + self.token}
         data = None
         if payload is not None:
             data = json.dumps(payload).encode("utf-8")
             headers["Content-Type"] = "application/json"
+        elif raw is not None:
+            data = raw
+            headers["Content-Type"] = content_type
         req = urllib.request.Request(self.base_url + path, data=data, headers=headers, method=method)
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
@@ -61,6 +65,14 @@ class AnnaClient:
 
     def json(self, method, path, payload=None):
         _, body = self.request(method, path, payload)
+        return self._decode(path, body)
+
+    def json_raw(self, method, path, data, content_type="application/octet-stream"):
+        _, body = self.request(method, path, raw=data, content_type=content_type)
+        return self._decode(path, body)
+
+    @staticmethod
+    def _decode(path, body):
         try:
             return json.loads(body.decode("utf-8"))
         except ValueError as exc:
@@ -170,6 +182,72 @@ def tool_logs(client, args):
     return [{"type": "text", "text": body.decode("utf-8", "replace")}]
 
 
+def tool_exec(client, args):
+    _require(args, "command")
+    payload = {"command": str(args["command"])}
+    if "timeout_ms" in args:
+        payload["timeoutMs"] = _as_int(args, "timeout_ms")
+    return [_json_text(client.json("POST", "/v1/exec", payload))]
+
+
+def tool_start_app(client, args):
+    _require(args, "package")
+    body = {}
+    if args.get("activity"):
+        body["activity"] = str(args["activity"])
+    path = "/v1/apps/%s/start" % quote(str(args["package"]), safe="")
+    return [_json_text(client.json("POST", path, body))]
+
+
+def tool_install_app(client, args):
+    _require(args, "apk_base64")
+    try:
+        apk = base64.b64decode(str(args["apk_base64"]), validate=True)
+    except Exception as exc:
+        raise AnnaError("invalid base64 apk: %s" % exc)
+    return [_json_text(client.json_raw("POST", "/v1/apps/install", apk))]
+
+
+def _file_body(args):
+    has_text = "text" in args
+    has_base64 = "base64" in args
+    if has_text and has_base64:
+        raise AnnaError("provide text or base64, not both")
+    if has_text:
+        return str(args["text"]).encode("utf-8")
+    if has_base64:
+        try:
+            return base64.b64decode(str(args["base64"]), validate=True)
+        except Exception as exc:
+            raise AnnaError("invalid base64 content: %s" % exc)
+    return b""
+
+
+def tool_write_file(client, args):
+    _require(args, "path")
+    data = _file_body(args)
+    path = str(args["path"])
+    package = args.get("package")
+    if package:
+        url = "/v1/apps/%s/file?path=%s" % (quote(str(package), safe=""), quote(path, safe=""))
+    else:
+        url = "/v1/fs/file?path=%s" % quote(path, safe="")
+    return [_json_text(client.json_raw("POST", url, data))]
+
+
+def tool_mkdir(client, args):
+    _require(args, "path")
+    url = "/v1/fs/mkdir?path=%s" % quote(str(args["path"]), safe="")
+    return [_json_text(client.json("POST", url, {}))]
+
+
+def tool_delete(client, args):
+    _require(args, "path")
+    recursive = "true" if args.get("recursive") else "false"
+    url = "/v1/fs/delete?path=%s&recursive=%s" % (quote(str(args["path"]), safe=""), recursive)
+    return [_json_text(client.json("POST", url, {}))]
+
+
 TOOLS = [
     {
         "name": "anna_status",
@@ -271,6 +349,80 @@ TOOLS = [
             },
         },
         "_handler": tool_logs,
+    },
+    {
+        "name": "anna_exec",
+        "description": "Run a shell command inside the guest (requires console access in Settings).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "command": {"type": "string"},
+                "timeout_ms": {"type": "integer", "description": "default 30000, max 120000"},
+            },
+            "required": ["command"],
+        },
+        "_handler": tool_exec,
+    },
+    {
+        "name": "anna_start_app",
+        "description": "Launch an installed guest app by package name (requires console access).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "package": {"type": "string"},
+                "activity": {"type": "string", "description": "optional explicit activity component"},
+            },
+            "required": ["package"],
+        },
+        "_handler": tool_start_app,
+    },
+    {
+        "name": "anna_install_app",
+        "description": "Install an APK into the guest from base64 bytes (requires console access).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"apk_base64": {"type": "string"}},
+            "required": ["apk_base64"],
+        },
+        "_handler": tool_install_app,
+    },
+    {
+        "name": "anna_write_file",
+        "description": "Write a file inside the guest rootfs or an app data dir (requires console access).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string"},
+                "text": {"type": "string", "description": "UTF-8 text content"},
+                "base64": {"type": "string", "description": "binary content instead of text"},
+                "package": {"type": "string", "description": "optional guest package data dir"},
+            },
+            "required": ["path"],
+        },
+        "_handler": tool_write_file,
+    },
+    {
+        "name": "anna_mkdir",
+        "description": "Create a directory inside the guest rootfs (requires console access).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"path": {"type": "string"}},
+            "required": ["path"],
+        },
+        "_handler": tool_mkdir,
+    },
+    {
+        "name": "anna_delete",
+        "description": "Delete a file or directory inside the guest rootfs (requires console access).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string"},
+                "recursive": {"type": "boolean", "description": "delete a directory tree"},
+            },
+            "required": ["path"],
+        },
+        "_handler": tool_delete,
     },
 ]
 

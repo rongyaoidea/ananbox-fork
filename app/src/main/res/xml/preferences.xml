@@ -19,4 +19,11 @@
         app:dependency="anna_gateway_enabled"
         app:defaultValue="false"/>
 
+    <SwitchPreferenceCompat
+        app:key="anna_exec_enabled"
+        app:title="@string/anna_exec_title"
+        app:summary="@string/anna_exec_summary"
+        app:dependency="anna_gateway_enabled"
+        app:defaultValue="false"/>
+
 </PreferenceScreen>

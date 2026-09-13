@@ -21,6 +21,7 @@ object AnnaCore {
 
     const val PREF_GATEWAY_ENABLED = "anna_gateway_enabled"
     const val PREF_ALLOW_LAN = "anna_allow_lan"
+    const val PREF_EXEC_ENABLED = "anna_exec_enabled"
     const val PREF_PORT = "anna_port"
 
     @Volatile

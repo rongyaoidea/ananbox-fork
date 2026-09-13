@@ -86,8 +86,19 @@ class AnnaHttpServer(
                 }
             }
 
-            val contentLength = headers["content-length"]?.toIntOrNull() ?: 0
-            val body = if (contentLength > 0) readExactly(input, contentLength) else ByteArray(0)
+            val contentLength = headers["content-length"]?.toLongOrNull() ?: 0L
+            if (contentLength > MAX_BODY_BYTES) {
+                respond(
+                    output,
+                    AnnaRoutes.Response(
+                        413,
+                        "application/json; charset=utf-8",
+                        "{\"error\":\"request body too large\",\"limit\":$MAX_BODY_BYTES}".toByteArray()
+                    )
+                )
+                return
+            }
+            val body = if (contentLength > 0) readExactly(input, contentLength.toInt()) else ByteArray(0)
 
             val response = routes.dispatch(method, target, headers, body)
             respond(output, response)
@@ -151,5 +162,6 @@ class AnnaHttpServer(
 
     companion object {
         private const val TAG = "AnnaHttp"
+        private const val MAX_BODY_BYTES = 32L * 1024 * 1024
     }
 }

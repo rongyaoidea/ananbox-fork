@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Self-test for the Anna MCP bridge, using a mock gateway (stdlib only)."""
 
+import base64
 import json
 import os
 import sys
@@ -17,6 +18,7 @@ FAKE_PNG = b"\x89PNG\r\n\x1a\nfakepng"
 
 class MockGateway(BaseHTTPRequestHandler):
     received = []
+    last_raw = b""
 
     def log_message(self, *args):
         pass
@@ -50,9 +52,17 @@ class MockGateway(BaseHTTPRequestHandler):
             self._send(401, "application/json", b'{"error":"unauthorized"}')
             return
         length = int(self.headers.get("Content-Length", "0"))
-        payload = json.loads(self.rfile.read(length) or b"{}")
+        raw = self.rfile.read(length) if length else b""
+        MockGateway.last_raw = raw
+        try:
+            payload = json.loads(raw or b"{}")
+        except ValueError:
+            payload = None
         MockGateway.received.append(("POST", self.path, payload))
-        self._send(200, "application/json", json.dumps({"ok": True, **payload}).encode())
+        response = {"ok": True}
+        if isinstance(payload, dict):
+            response.update(payload)
+        self._send(200, "application/json", json.dumps(response).encode())
 
 
 class AnnaMcpTest(unittest.TestCase):
@@ -138,6 +148,42 @@ class AnnaMcpTest(unittest.TestCase):
         bad = m.AnnaClient(base_url=self.client.base_url, token="wrong")
         with self.assertRaises(m.AnnaError):
             bad.json("GET", "/v1/status")
+
+    def _call(self, msg_id, name, arguments):
+        return self.server.handle(
+            {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "method": "tools/call",
+                "params": {"name": name, "arguments": arguments},
+            }
+        )
+
+    def test_exec_tool(self):
+        response = self._call(10, "anna_exec", {"command": "pm list packages"})
+        self.assertFalse(response["result"]["isError"])
+        self.assertEqual(MockGateway.received[-1], ("POST", "/v1/exec", {"command": "pm list packages"}))
+
+    def test_start_app_tool(self):
+        response = self._call(11, "anna_start_app", {"package": "com.example.app"})
+        self.assertFalse(response["result"]["isError"])
+        self.assertEqual(MockGateway.received[-1], ("POST", "/v1/apps/com.example.app/start", {}))
+
+    def test_install_app_decodes_base64(self):
+        apk = b"PK\x03\x04fake-apk"
+        response = self._call(12, "anna_install_app", {"apk_base64": base64.b64encode(apk).decode()})
+        self.assertFalse(response["result"]["isError"])
+        self.assertEqual(MockGateway.last_raw, apk)
+
+    def test_write_file_sends_text(self):
+        response = self._call(13, "anna_write_file", {"path": "note.txt", "text": "hello guest"})
+        self.assertFalse(response["result"]["isError"])
+        self.assertEqual(MockGateway.last_raw, b"hello guest")
+        self.assertTrue(MockGateway.received[-1][1].startswith("/v1/fs/file?path=note.txt"))
+
+    def test_write_file_rejects_ambiguous_content(self):
+        response = self._call(14, "anna_write_file", {"path": "x", "text": "a", "base64": "YQ=="})
+        self.assertTrue(response["result"]["isError"])
 
 
 if __name__ == "__main__":
