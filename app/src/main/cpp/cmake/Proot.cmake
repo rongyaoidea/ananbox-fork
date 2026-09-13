@@ -17,7 +17,10 @@ ExternalProject_Add(
         GIT_TAG 8c60d0287ce9ece3f21df1dc60de55e33f6bdba3
         GIT_SHALLOW 1
         CONFIGURE_COMMAND cd ${PROOT_SRC} && make clean
-        BUILD_COMMAND cd ${PROOT_SRC} && make V=1 CC=${PROOT_C_COMPILER} LD=${PROOT_C_COMPILER} STRIP=${CMAKE_STRIP} OBJCOPY=${CMAKE_OBJCOPY} OBJDUMP=${CMAKE_OBJDUMP} CFLAGS=${PROOT_C_FLAGS} LDFLAGS=${PROOT_LINKER_FLAGS}
+        # HAS_SWIG/HAS_PYTHON_CONFIG are cleared on purpose: when a host swig and
+        # python3-config are present (e.g. CI runners) proot tries to build its
+        # Python extension with host includes and breaks the cross build.
+        BUILD_COMMAND cd ${PROOT_SRC} && make V=1 HAS_SWIG= HAS_PYTHON_CONFIG= CC=${PROOT_C_COMPILER} LD=${PROOT_C_COMPILER} STRIP=${CMAKE_STRIP} OBJCOPY=${CMAKE_OBJCOPY} OBJDUMP=${CMAKE_OBJDUMP} CFLAGS=${PROOT_C_FLAGS} LDFLAGS=${PROOT_LINKER_FLAGS}
         # hacked: only lib*.so can be packed into apk
         INSTALL_COMMAND cd ${PROOT_SRC} && cp -f ./proot ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libproot.so
         DEPENDS talloc unwind_ptrace
