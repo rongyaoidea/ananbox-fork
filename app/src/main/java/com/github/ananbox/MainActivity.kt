@@ -8,6 +8,7 @@ import android.content.DialogInterface
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
@@ -94,27 +95,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         if (!File(filesDir, "rootfs").exists()) {
-            AlertDialog.Builder(this)
-                .apply {
-                    setTitle(getString(R.string.rom_installer_title))
-                    setMessage(getString(R.string.rom_installer_message))
-                    setPositiveButton(R.string.rom_installer_install) { dialogInterface: DialogInterface, i: Int ->
-                        startActivityForResult(
-                            Intent(Intent.ACTION_OPEN_DOCUMENT)
-                                .apply {
-                                    addCategory(Intent.CATEGORY_OPENABLE)
-                                    setType("application/x-7z-compressed")
-                                },
-                            READ_REQUEST_CODE
-                        )
-                    }
-                    setNegativeButton(R.string.cancel) { dialogInterface: DialogInterface, i: Int ->
-                        finishAffinity()
-                        exitProcess(0)
-                    }
-                    setCancelable(false)
-                    show()
-                }
+            showRomInstaller()
             return
         }
 
@@ -162,39 +143,118 @@ class MainActivity : AppCompatActivity() {
                 finishAffinity()
                 return
             }
-            val uri = data.data
-            if (uri != null) {
-                val progressDialog = ProgressDialog(this).apply {
-                    setTitle(getString(R.string.rom_installer_extracting_title))
-                    setMessage(getString(R.string.rom_installer_extracting_msg))
-                    setProgressStyle(ProgressDialog.STYLE_SPINNER)
-                    setCanceledOnTouchOutside(false)
-                    show()
+            val uri = data.data ?: return
+            val progressDialog = showExtractingDialog()
+            thread {
+                val romFile = File(filesDir, "rootfs.7z")
+                contentResolver.openInputStream(uri)?.use { input ->
+                    romFile.outputStream().use { output -> input.copyTo(output) }
                 }
-                thread {
-                    val romFile = File(filesDir, "rootfs.7z")
-                    val tmpDir = File(filesDir, "tmp")
-                    val inputStream = contentResolver.openInputStream(uri)
-                    val outputStream = romFile.outputStream()
-                    if (inputStream != null) {
-                        inputStream.copyTo(outputStream)
-                        val cpu = Runtime.getRuntime().availableProcessors()
-                        P7ZipApi.executeCommand(
-                            String.format(
-                                Locale.US, "7z x -mmt=%d -aoa '%s' '-o%s'",
-                                cpu, romFile.absolutePath, filesDir
-                            )
-                        )
+                extractRom(romFile, progressDialog)
+            }
+        }
+    }
 
-                        BinderBridge.prepare(File(filesDir, "rootfs"))
+    private fun showRomInstaller() {
+        val asset = RomCatalog.forAbi(Build.SUPPORTED_ABIS.firstOrNull())
+        val builder = AlertDialog.Builder(this)
+            .setTitle(getString(R.string.rom_installer_title))
+            .setMessage(
+                getString(
+                    if (asset != null) R.string.rom_installer_message_download
+                    else R.string.rom_installer_message
+                )
+            )
+            .setNeutralButton(R.string.rom_installer_install) { _: DialogInterface, _: Int -> pickRomFile() }
+            .setNegativeButton(R.string.cancel) { _: DialogInterface, _: Int ->
+                finishAffinity()
+                exitProcess(0)
+            }
+            .setCancelable(false)
+        if (asset != null) {
+            builder.setPositiveButton(R.string.rom_installer_download) { _: DialogInterface, _: Int ->
+                downloadRom(asset)
+            }
+        }
+        builder.show()
+    }
 
-                        progressDialog.dismiss()
-                        romFile.delete()
-                        tmpDir.mkdir()
-                        runOnUiThread() { recreate() }
+    private fun pickRomFile() {
+        startActivityForResult(
+            Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                setType("application/x-7z-compressed")
+            },
+            READ_REQUEST_CODE
+        )
+    }
+
+    private fun downloadRom(asset: RomCatalog.RomAsset) {
+        val progressDialog = ProgressDialog(this).apply {
+            setTitle(getString(R.string.rom_installer_downloading_title))
+            setMessage(getString(R.string.rom_installer_downloading_msg))
+            setProgressStyle(ProgressDialog.STYLE_HORIZONTAL)
+            max = 100
+            setCanceledOnTouchOutside(false)
+            show()
+        }
+        thread {
+            val target = File(filesDir, "rootfs.7z")
+            val ok = RomDownloader.download(asset, target) { progress ->
+                runOnUiThread {
+                    if (progress.percent >= 0) {
+                        progressDialog.progress = progress.percent
                     }
                 }
             }
+            runOnUiThread {
+                progressDialog.dismiss()
+                if (ok) {
+                    val extractDialog = showExtractingDialog()
+                    thread { extractRom(target, extractDialog) }
+                } else {
+                    showDownloadFailed()
+                }
+            }
         }
+    }
+
+    private fun extractRom(romFile: File, progressDialog: ProgressDialog) {
+        val tmpDir = File(filesDir, "tmp")
+        val cpu = Runtime.getRuntime().availableProcessors()
+        P7ZipApi.executeCommand(
+            String.format(
+                Locale.US, "7z x -mmt=%d -aoa '%s' '-o%s'",
+                cpu, romFile.absolutePath, filesDir
+            )
+        )
+        BinderBridge.prepare(File(filesDir, "rootfs"))
+        runOnUiThread {
+            progressDialog.dismiss()
+            romFile.delete()
+            tmpDir.mkdir()
+            recreate()
+        }
+    }
+
+    private fun showExtractingDialog(): ProgressDialog = ProgressDialog(this).apply {
+        setTitle(getString(R.string.rom_installer_extracting_title))
+        setMessage(getString(R.string.rom_installer_extracting_msg))
+        setProgressStyle(ProgressDialog.STYLE_SPINNER)
+        setCanceledOnTouchOutside(false)
+        show()
+    }
+
+    private fun showDownloadFailed() {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.rom_installer_download_failed_title))
+            .setMessage(getString(R.string.rom_installer_download_failed_msg))
+            .setPositiveButton(R.string.rom_installer_install) { _: DialogInterface, _: Int -> pickRomFile() }
+            .setNegativeButton(R.string.cancel) { _: DialogInterface, _: Int ->
+                finishAffinity()
+                exitProcess(0)
+            }
+            .setCancelable(false)
+            .show()
     }
 }

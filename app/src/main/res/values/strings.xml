@@ -7,7 +7,13 @@
     <string name="settings_shutdown_summary">Shutdown Ananbox immediately</string>
     <string name="rom_installer_title">Install rom</string>
     <string name="rom_installer_message">Please select a rom file (.7z) on your phone</string>
+    <string name="rom_installer_message_download">Download the rom for this device, or select a .7z file on your phone</string>
+    <string name="rom_installer_download">Download</string>
     <string name="rom_installer_install">Select a file</string>
+    <string name="rom_installer_downloading_title">Downloading</string>
+    <string name="rom_installer_downloading_msg">Downloading rom file..</string>
+    <string name="rom_installer_download_failed_title">Download failed</string>
+    <string name="rom_installer_download_failed_msg">Could not download or verify the rom. Check your connection, or select a .7z file manually.</string>
     <string name="rom_installer_extracting_title">Extracting</string>
     <string name="rom_installer_extracting_msg">Extracting rom file..</string>
     <string name="cancel">Cancel</string>

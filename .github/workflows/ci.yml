@@ -37,6 +37,9 @@ jobs:
       - name: Assemble debug APK without native code
         run: ./gradlew :app:assembleDebug -PskipNative --stacktrace --console=plain
 
+      - name: Run host unit tests
+        run: ./gradlew :app:testDebugUnitTest -PskipNative --stacktrace --console=plain
+
       - name: Upload APK
         if: always()
         uses: actions/upload-artifact@v4
