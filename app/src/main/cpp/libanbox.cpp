@@ -44,6 +44,7 @@ static std::shared_ptr<anbox::graphics::Rect> frame = std::make_shared<anbox::gr
 static std::shared_ptr<::Renderer> renderer_;
 static std::shared_ptr<anbox::network::PublishedSocketConnector> qemu_pipe_connector_;
 static std::shared_ptr<anbox::input::Device> touch_;
+static std::shared_ptr<anbox::input::Device> keyboard_;
 static ANativeWindow* native_window;
 static char path[255];
 
@@ -155,14 +156,6 @@ Java_com_github_ananbox_Anbox_initRuntime(
 //    pointer_->set_rel_bit(REL_WHEEL);
 //    pointer_->set_prop_bit(INPUT_PROP_POINTER);
 
-//    auto keyboard_ = input_manager->create_device();
-//    keyboard_->set_name("anbox-keyboard");
-//    keyboard_->set_driver_version(1);
-//    keyboard_->set_input_id({BUS_VIRTUAL, 3, 3, 3});
-//    keyboard_->set_physical_location("none");
-//    keyboard_->set_key_bit(BTN_MISC);
-//    keyboard_->set_key_bit(KEY_OK);
-
     touch_ = input_manager->create_device();
     touch_->set_name("anbox-touch");
     touch_->set_driver_version(1);
@@ -181,6 +174,26 @@ Java_com_github_ananbox_Anbox_initRuntime(
     touch_->set_abs_bit(ABS_MT_TRACKING_ID);
     touch_->set_abs_max(ABS_MT_TRACKING_ID, MAX_TRACKING_ID);
     touch_->set_prop_bit(INPUT_PROP_DIRECT);
+
+    keyboard_ = input_manager->create_device();
+    keyboard_->set_name("anbox-keyboard");
+    keyboard_->set_driver_version(1);
+    keyboard_->set_input_id({BUS_VIRTUAL, 3, 3, 3});
+    keyboard_->set_physical_location("none");
+    // Mark a broad key range so the guest InputReader classifies the device as
+    // a full physical keyboard and routes events to the focused window.
+    for (int key = KEY_ESC; key <= KEY_SLASH; key++)
+        keyboard_->set_key_bit(key);
+    const int extra_keys[] = {
+            KEY_RIGHTSHIFT, KEY_LEFTALT, KEY_RIGHTALT, KEY_LEFTMETA, KEY_SPACE,
+            KEY_CAPSLOCK, KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_HOME, KEY_END,
+            KEY_INSERT, KEY_DELETE, KEY_PAGEUP, KEY_PAGEDOWN, KEY_BACK, KEY_MENU,
+            KEY_HOMEPAGE, KEY_VOLUMEUP, KEY_VOLUMEDOWN, KEY_POWER, KEY_SEARCH,
+            KEY_KPENTER, KEY_KP0, KEY_KP1, KEY_KP2, KEY_KP3, KEY_KP4, KEY_KP5,
+            KEY_KP6, KEY_KP7, KEY_KP8, KEY_KP9,
+    };
+    for (int key : extra_keys)
+        keyboard_->set_key_bit(key);
 
     // delete qemu_pipe if exists
     std::string socket_file = anbox::utils::string_format("%s/qemu_pipe", path);
@@ -276,6 +289,24 @@ Java_com_github_ananbox_Anbox_pushFingerMotion(JNIEnv *env, jobject thiz, jint x
     touch_events.push_back({EV_ABS, ABS_MT_POSITION_Y, y});
     touch_events.push_back({EV_SYN, SYN_REPORT, 0});
     touch_->send_events(touch_events);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_github_ananbox_Anbox_pushKey(JNIEnv *env, jobject thiz, jint key_code, jboolean down) {
+    if (keyboard_ == nullptr)
+        return;
+    std::vector<anbox::input::Event> key_events;
+    key_events.push_back({EV_KEY, static_cast<std::uint16_t>(key_code),
+                          static_cast<std::int32_t>(down ? 1 : 0)});
+    key_events.push_back({EV_SYN, SYN_REPORT, 0});
+    keyboard_->send_events(key_events);
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_github_ananbox_Anbox_hasKeyboard(JNIEnv *env, jobject thiz) {
+    return keyboard_ != nullptr ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C"

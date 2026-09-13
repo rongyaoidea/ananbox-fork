@@ -76,6 +76,8 @@ class AnnaRoutes(private val core: AnnaCore) {
             method == "GET" && path == "/v1/screen" -> screen()
             method == "POST" && path == "/v1/input/tap" -> tap(body)
             method == "POST" && path == "/v1/input/swipe" -> swipe(body)
+            method == "POST" && path == "/v1/input/text" -> text(body)
+            method == "POST" && path == "/v1/input/key" -> key(body)
             method == "GET" && path == "/v1/apps" -> apps()
             method == "GET" && path.startsWith("/v1/apps/") -> appDetail(path, uri)
             method == "GET" && path == "/v1/fs/list" -> fsList(uri)
@@ -100,6 +102,7 @@ class AnnaRoutes(private val core: AnnaCore) {
                 .put("surfaceAttached", view != null)
                 .put("display", JSONObject().put("width", core.displayWidth).put("height", core.displayHeight))
                 .put("appCount", inventory.size)
+                .put("keyboard", InputInjector.hasKeyboard())
                 .put("captureApi", android.os.Build.VERSION.SDK_INT)
         )
     }
@@ -139,8 +142,31 @@ class AnnaRoutes(private val core: AnnaCore) {
         return Response.json(200, JSONObject().put("ok", true))
     }
 
-    // ---------------------------------------------------------------- apps
+    private fun text(body: ByteArray): Response {
+        val json = JSONObject(String(body, Charsets.UTF_8))
+        val text = json.optString("text", "")
+        if (text.isEmpty()) {
+            return Response.json(400, JSONObject().put("error", "text is required"))
+        }
+        InputInjector.typeText(text)
+        return Response.json(200, JSONObject().put("ok", true).put("length", text.length))
+    }
 
+    private fun key(body: ByteArray): Response {
+        val json = JSONObject(String(body, Charsets.UTF_8))
+        var code = json.optInt("code", -1)
+        if (code <= 0) {
+            val name = json.optString("key", "")
+            if (name.isNotEmpty()) code = InputInjector.keyCodeByName(name) ?: -1
+        }
+        if (code <= 0) {
+            return Response.json(400, JSONObject().put("error", "key name or code is required"))
+        }
+        InputInjector.tapKey(code)
+        return Response.json(200, JSONObject().put("ok", true).put("code", code))
+    }
+
+    // ---------------------------------------------------------------- apps
     private fun apps(): Response {
         val list = GuestInventory.list(core.rootfs)
         val array = JSONArray()

@@ -26,6 +26,8 @@ object Anbox: View.OnTouchListener {
     external fun pushFingerUp(i: Int)
     external fun pushFingerDown(x: Int, y: Int, fingerId: Int)
     external fun pushFingerMotion(x: Int, y: Int, fingerId: Int)
+    external fun pushKey(keyCode: Int, down: Boolean)
+    external fun hasKeyboard(): Boolean
     external fun dumpParcel(parcel: Parcel, path: String)
 
     fun stopContainer() {
