@@ -22,6 +22,11 @@ import java.lang.reflect.Proxy
  *   <rootfs>/binderBroadcastIntent
  *   <rootfs>/trans_code
  *
+ * For each dump, `Anbox.dumpParcel` also writes `<file>.meta`, a JSON manifest
+ * (data/object sizes, FNV-1a checksums and every flat_binder_object with its
+ * offset, type and whether it is the injected placeholder or a remote handle),
+ * so the guest patcher can locate the placeholder deterministically.
+ *
  * A guest helper patches the placeholder binder and replays the transaction.
  *
  * The legacy implementation built those parcels by hand, which broke whenever

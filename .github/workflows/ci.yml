@@ -117,3 +117,16 @@ jobs:
 
       - name: Run Anna MCP tests
         run: python3 -m unittest discover -s tools/anna-mcp -p 'test_*.py' -v
+
+  cpp-selftest:
+    name: Binder manifest self-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compile and run binder manifest tests
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -I app/src/main/cpp \
+            app/src/main/cpp/tests/binder_manifest_test.cpp -o /tmp/binder_manifest_test
+          /tmp/binder_manifest_test

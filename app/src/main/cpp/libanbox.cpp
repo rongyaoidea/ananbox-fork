@@ -18,6 +18,7 @@
 #include <android/log.h>
 #include <android/native_window_jni.h>
 #include "Parcel.h"
+#include "BinderManifest.h"
 #define TAG "libAnbox"
 
 #define ALOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
@@ -388,6 +389,18 @@ Java_com_github_ananbox_Anbox_dumpParcel(JNIEnv *env, jobject thiz, jobject jpar
         write(fd, parcel->mData, parcel->mDataSize);
         write(fd, parcel->mObjects, parcel->mObjectsSize * sizeof(int64_t));
         close(fd);
+
+        std::string meta = std::string(path) + ".meta";
+        std::string manifest = ananbox::binderManifestJson(
+                parcel->mData, parcel->mDataSize, parcel->mObjects, parcel->mObjectsSize,
+                path, true);
+        int mfd = open(meta.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0700);
+        if (mfd < 0) {
+            __android_log_print(ANDROID_LOG_ERROR, TAG, "failed to open meta file, err :%d", errno);
+        } else {
+            write(mfd, manifest.data(), manifest.size());
+            close(mfd);
+        }
     }
     env->ReleaseStringUTFChars(jpath, path);
 }

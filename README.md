@@ -42,6 +42,8 @@ Host-side Paths:
 - `/data/data/com.github.ananbox/files/proot.log`
 - `/data/data/com.github.ananbox/files/rootfs/localBroadcastIntent`
 - `/data/data/com.github.ananbox/files/rootfs/binderBroadcastIntent`
+- `/data/data/com.github.ananbox/files/rootfs/localBroadcastIntent.meta`
+- `/data/data/com.github.ananbox/files/rootfs/binderBroadcastIntent.meta`
 - `/data/data/com.github.ananbox/files/rootfs/trans_code`
 
 ## Preview
