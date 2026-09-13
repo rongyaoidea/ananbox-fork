@@ -28,7 +28,7 @@ Android 11 and newer
 
 ## How to use
 
-Build or Download the app and the rootfs.7z of corresponding architecture. The app provides the option to import the ROM the first time you boot. 
+Build or Download the app and the rootfs.7z of corresponding architecture. On first boot the app offers to download the ROM for your device (currently the arm64 image is mirrored in this fork's `rom-*` releases, size and SHA-256 verified); for other architectures, select a locally built `rootfs.7z` instead.
 
 Click the bottom-right button to launch the Settings Activity, where you can shutdown the container gracefully.
 
