@@ -6,6 +6,8 @@ import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.SwitchPreferenceCompat
+import com.github.ananbox.anna.AnnaService
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -22,6 +24,15 @@ class SettingsActivity : AppCompatActivity() {
                 true
             }
 
+            val gateway = preferenceScreen.findPreference<SwitchPreferenceCompat>("anna_gateway_enabled")
+            gateway?.setOnPreferenceChangeListener { _, newValue ->
+                if (newValue as? Boolean == true) {
+                    AnnaService.start(requireContext())
+                } else {
+                    AnnaService.stop(requireContext())
+                }
+                true
+            }
         }
     }
 

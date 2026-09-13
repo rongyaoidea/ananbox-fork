@@ -8,42 +8,70 @@ import android.os.IBinder
 import android.os.RemoteException
 import android.util.Log
 
+/**
+ * Receives the guest virtual servicemanager's binder and hands it back to
+ * guest processes that ask for it (the binder-on-binder shim transport).
+ *
+ * `remoteBinder` is adopted with a death recipient so a crashed guest backend
+ * does not leave the host with a stale handle.
+ */
 class BinderReceiver : BroadcastReceiver() {
+
     companion object {
+        private const val TAG = "BinderReceiver"
+
+        @Volatile
         var remoteBinder: IBinder? = null
+            private set
+
+        private val deathRecipient = IBinder.DeathRecipient {
+            Log.w(TAG, "guest backend binder died")
+            remoteBinder = null
+        }
+
+        @Synchronized
+        private fun adopt(binder: IBinder): Boolean {
+            val current = remoteBinder
+            if (current === binder) return true
+            if (current != null) {
+                Log.w(TAG, "replacing existing guest binder")
+                runCatching { current.unlinkToDeath(deathRecipient, 0) }
+            }
+            return try {
+                binder.linkToDeath(deathRecipient, 0)
+                remoteBinder = binder
+                true
+            } catch (e: RemoteException) {
+                Log.e(TAG, "failed to link binder death: ${e.message}")
+                false
+            }
+        }
     }
-    private val tag = "BinderReceiver"
 
     override fun onReceive(context: Context, intent: Intent) {
-        Log.d(tag, "onReceive()")
         val binder = intent.extras?.getBinder("binder")
-        if (binder != null && remoteBinder == null) {
-            if (binder.pingBinder()) {
-                Log.d(tag, "receive remoteBinder")
-                remoteBinder = binder
+        if (binder != null) {
+            if (!binder.pingBinder()) {
+                Log.e(TAG, "dead remoteBinder")
+                return
             }
-            else {
-                Log.e(tag,"dead remoteBinder")
+            if (adopt(binder)) {
+                Log.d(TAG, "guest binder adopted (pid=${Binder.getCallingPid()})")
             }
-            return
-        }
-        else if (binder != null && remoteBinder != null) {
-            Log.e(tag, "contextMgr has been set");
             return
         }
 
         val localBinder = intent.extras?.getBinder("local")
         if (localBinder != null) {
-            Log.d(tag, "receive localBinder, pid: " + Binder.getCallingPid())
+            Log.d(TAG, "local binder request, pid: " + Binder.getCallingPid())
             try {
                 ILocalInterface.Stub.asInterface(localBinder).onReceiveBinder(remoteBinder)
-                Log.d(tag, "remoteBinder sent");
+                Log.d(TAG, "remoteBinder sent")
             } catch (e: RemoteException) {
-                Log.e(tag, "remoteBinder send failed");
+                Log.e(TAG, "remoteBinder send failed: ${e.message}")
             }
-        }
-        else {
-            Log.e(tag, "Empty broadcast");
+        } else {
+            Log.e(TAG, "Empty broadcast")
         }
     }
 }

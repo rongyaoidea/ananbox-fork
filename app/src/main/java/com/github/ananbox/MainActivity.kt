@@ -4,12 +4,10 @@ import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
 import android.app.ProgressDialog
-import android.content.BroadcastReceiver
 import android.content.DialogInterface
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
@@ -17,12 +15,13 @@ import android.util.DisplayMetrics
 import android.util.Log
 import android.view.SurfaceHolder
 import android.view.SurfaceView
-import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.github.ananbox.anna.AnnaCore
+import com.github.ananbox.anna.AnnaService
 import com.github.ananbox.databinding.ActivityMainBinding
 import com.hzy.libp7zip.P7ZipApi
 import java.io.File
@@ -48,11 +47,13 @@ class MainActivity : AppCompatActivity() {
             Log.i(TAG, "Runtime initializing..")
             if(Anbox.initRuntime(mSurfaceView.width, mSurfaceView.height, dpi)) {
                 Anbox.createSurface(surface)
+                AnnaCore.attachSurface(mSurfaceView)
                 Anbox.startRuntime()
                 Anbox.startContainer(applicationContext.applicationInfo.nativeLibraryDir + "/libproot.so")
             }
             else {
                 Anbox.createSurface(surface)
+                AnnaCore.attachSurface(mSurfaceView)
             }
         }
 
@@ -65,6 +66,7 @@ class MainActivity : AppCompatActivity() {
 
         override fun surfaceDestroyed(holder: SurfaceHolder) {
 //            Renderer.removeWindow(holder.surface)
+            AnnaCore.detachSurface()
             Anbox.destroySurface()
             Log.i(TAG, "surfaceDestroyed!")
         }
@@ -118,6 +120,11 @@ class MainActivity : AppCompatActivity() {
 
         Anbox.setPath(filesDir.path)
 
+        AnnaCore.init(applicationContext, File(filesDir, "rootfs"))
+        if (File(filesDir, "rootfs").isDirectory) {
+            BinderBridge.prepare(File(filesDir, "rootfs"))
+        }
+
         mSurfaceView = SurfaceView(this)
         mSurfaceView.getHolder().addCallback(mSurfaceCallback)
         binding.root.addView(mSurfaceView, 0)
@@ -126,6 +133,10 @@ class MainActivity : AppCompatActivity() {
         mSurfaceView.setOnTouchListener(Anbox)
         binding.fab.setOnClickListener {
             startActivity(Intent(applicationContext, SettingsActivity::class.java))
+        }
+
+        if (AnnaCore.prefs().getBoolean(AnnaCore.PREF_GATEWAY_ENABLED, false)) {
+            AnnaService.start(this)
         }
     }
 
@@ -138,6 +149,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        AnnaCore.detachSurface()
+        AnnaService.stop(this)
         Anbox.stopRuntime()
         unregisterReceiver(receiver)
     }
@@ -173,12 +186,7 @@ class MainActivity : AppCompatActivity() {
                             )
                         )
 
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                            ParcelConstructor.getBroadcastIntent("local")
-                            ParcelConstructor.getBroadcastIntent("binder")
-                        }
-                        val codeFile = File(filesDir.path + "/rootfs/trans_code")
-                        codeFile.writeText(Anbox.getBroadcastIntentTransactionCode().toString())
+                        BinderBridge.prepare(File(filesDir, "rootfs"))
 
                         progressDialog.dismiss()
                         romFile.delete()

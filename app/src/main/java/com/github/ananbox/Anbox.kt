@@ -1,13 +1,10 @@
 package com.github.ananbox
 
-import android.os.Build
 import android.os.Parcel
 import android.util.Log
 import android.view.MotionEvent
 import android.view.Surface
 import android.view.View
-import java.lang.reflect.InvocationHandler
-import java.lang.reflect.Proxy
 import kotlin.system.exitProcess
 
 object Anbox: View.OnTouchListener {
@@ -53,28 +50,5 @@ object Anbox: View.OnTouchListener {
             }
         }
         return true
-    }
-
-    fun getBroadcastIntentTransactionCode(): Int {
-        var code = 0
-        val cActivityManager = Class.forName("android.app.ActivityManager")
-        val mGetService = cActivityManager.getMethod("getService")
-        val oActivityManager = mGetService.invoke(null)
-        val stubClass = oActivityManager.javaClass
-        val binderField = stubClass.getDeclaredField("mRemote")
-        binderField.isAccessible = true
-        val activityManagerBinder = binderField.get(oActivityManager)
-        val binderClass = Class.forName("android.os.IBinder")
-        val binderProxy = Proxy.newProxyInstance(binderClass.classLoader, arrayOf(binderClass),
-            InvocationHandler { any, method, anies ->
-                code = anies.get(0) as Int
-                true
-            })
-        val broadcastMethod = stubClass.methods.find { it.name.equals("broadcastIntent") }
-        binderField.set(oActivityManager, binderProxy)
-        broadcastMethod?.invoke(oActivityManager, null, null, null, null, 0, null,
-            null, null, 0, null, false, false, 0)
-        binderField.set(oActivityManager, activityManagerBinder)
-        return code
     }
 }

@@ -6,4 +6,17 @@
         app:title="@string/settings_shutdown_title"
         app:summary="@string/settings_shutdown_summary"/>
 
+    <SwitchPreferenceCompat
+        app:key="anna_gateway_enabled"
+        app:title="@string/anna_gateway_title"
+        app:summary="@string/anna_gateway_summary"
+        app:defaultValue="false"/>
+
+    <SwitchPreferenceCompat
+        app:key="anna_allow_lan"
+        app:title="@string/anna_lan_title"
+        app:summary="@string/anna_lan_summary"
+        app:dependency="anna_gateway_enabled"
+        app:defaultValue="false"/>
+
 </PreferenceScreen>

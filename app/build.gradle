@@ -3,6 +3,10 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+// `-PskipNative` lets CI compile Kotlin/resources/manifest without the NDK
+// toolchain (fast feedback). Full builds keep the native pipeline.
+def skipNative = project.hasProperty("skipNative")
+
 android {
     namespace 'com.github.ananbox'
     compileSdk 33
@@ -17,13 +21,15 @@ android {
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
-        ndk {
-            abiFilters 'x86_64', 'arm64-v8a'
-        }
+        if (!skipNative) {
+            ndk {
+                abiFilters 'x86_64', 'arm64-v8a'
+            }
 
-        externalNativeBuild {
-            cmake {
-                targets "anbox", "proot"
+            externalNativeBuild {
+                cmake {
+                    targets "anbox", "proot"
+                }
             }
         }
     }
@@ -41,10 +47,12 @@ android {
     kotlinOptions {
         jvmTarget = '1.8'
     }
-    externalNativeBuild {
-        cmake {
-            path file('src/main/cpp/CMakeLists.txt')
-            version '3.22.1'
+    if (!skipNative) {
+        externalNativeBuild {
+            cmake {
+                path file('src/main/cpp/CMakeLists.txt')
+                version '3.22.1'
+            }
         }
     }
     buildFeatures {

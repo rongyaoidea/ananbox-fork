@@ -345,7 +345,9 @@ Java_com_github_ananbox_Anbox_dumpParcel(JNIEnv *env, jobject thiz, jobject jpar
     ALOGI("mObjectSize: %d", parcel->mObjectsSize);
 
     const char *path = env->GetStringUTFChars(jpath, 0);
-    int fd = open(path, O_CREAT | O_WRONLY, 0700);
+    // O_TRUNC: a regenerated dump can be shorter than the previous one, stale
+    // trailing bytes would corrupt the parcel replay in the guest.
+    int fd = open(path, O_CREAT | O_WRONLY | O_TRUNC, 0700);
     if (fd < 0) {
         __android_log_print(ANDROID_LOG_ERROR, TAG, "failed to open file, err :%d", errno);
     }

@@ -11,4 +11,12 @@
     <string name="rom_installer_extracting_title">Extracting</string>
     <string name="rom_installer_extracting_msg">Extracting rom file..</string>
     <string name="cancel">Cancel</string>
+    <string name="anna_channel_name">Agent gateway</string>
+    <string name="anna_channel_description">Keeps the Ananbox agent gateway reachable while the container runs</string>
+    <string name="anna_notification_title">Ananbox agent gateway</string>
+    <string name="anna_notification_text">The local agent API is listening</string>
+    <string name="anna_gateway_title">Agent gateway</string>
+    <string name="anna_gateway_summary">Expose the container to external agents over a local HTTP API</string>
+    <string name="anna_lan_title">Allow LAN access</string>
+    <string name="anna_lan_summary">Listen on all interfaces instead of 127.0.0.1 (requires bearer token)</string>
 </resources>
