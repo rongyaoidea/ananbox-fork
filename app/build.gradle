@@ -59,6 +59,13 @@ android {
         viewBinding true
         aidl true
     }
+    testOptions {
+        unitTests.all {
+            testLogging {
+                events "passed", "skipped", "failed"
+            }
+        }
+    }
     packagingOptions {
         jniLibs {
             useLegacyPackaging = true
